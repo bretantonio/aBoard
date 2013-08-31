@@ -12,10 +12,11 @@ var PrettyStateMachine = function(state) {
     this.CURRENT = state || 0;
     this.STATES = {
         DISCONNECTED : 0,
-        NEEDS_PWD    : 1,
-        LOGGED_IN    : 2
+        CONNECTED    : 1,
+        NEEDS_PWD    : 2,
+        LOGGED_IN    : 3
     };
-    this.nStates = 3;
+    this.nStates = 4;
 
     this.next = function() {
         this.CURRENT = (this.CURRENT + 1) % this.nStates;
@@ -75,7 +76,7 @@ var GameState = function () {
             }
             display += '|';
         }
-        var display = '+\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t+';
+        display += '+\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t+';
         return display;
     }
 };
@@ -119,7 +120,7 @@ fs.readFile(__dirname+'/'+credentials_file, 'utf8', function (err, data) {
                     //sys.puts(str);
                 }
     		}
-    		if(PSM('NEEDS_PWD')) {
+    		if(PSM.is('NEEDS_PWD')) {
     			fics.write(credentials.pwd+EOL);
     			PSM.next();
     		} else if(!PSM.is('LOGGED_IN')) {
