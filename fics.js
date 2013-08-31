@@ -98,7 +98,7 @@ fs.readFile(__dirname+'/'+credentials_file, 'utf8', function (err, data) {
     	PSM.next();
     	sys.puts('Connected to FICS');
     	input.addListener('data', function(data) {
-    		if(PSM.is('CONNECTED')) {
+    		if(!PSM.is('DISCONNECTED')) {
     			fics.write(data + EOL);
     		}
     	});
