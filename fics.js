@@ -8,12 +8,80 @@ var logfile = 'log';
 var EOL = '\r\n';
 
 // Pretty State Machine
-var PSM = {
-	'isLoggedIn' : false,
-	'isInputtingPassword' : false,
-	'isConnected' : false
-};
+var PrettyStateMachine = function(state) {
+    this.CURRENT = state || 0;
+    this.STATES = {
+        DISCONNECTED : 0,
+        NEEDS_PWD    : 1,
+        LOGGED_IN    : 2
+    };
+    this.nStates = 3;
 
+    this.next = function() {
+        this.CURRENT = (this.CURRENT + 1) % this.nStates;
+    };
+    this.disconnect = function() {
+       this.CURRENT = this.DISCONNECTED; 
+    };
+    this.is = function(state) {
+        return (this.CURRENT === this.STATES[state]);
+    };
+};
+var PSM = new PrettyStateMachine();
+
+var GameState = function () { 
+    this.board = [];
+    this.boardData = [];
+    this.parseFromStyle12 = function(str) {
+        str = str.substr(str.indexOf('<12>'));
+        var style12  = str.split(' ').slice(1);
+        var board = style12.slice(0,8);
+        // board = [ 
+        //    'PKR-----',
+        //    'pppppppp',
+        //    ... etc
+        // ]
+        this.board = board.map(function(row) { return row.split(''); });
+        // board = [ [P,K,R,-,...etc],[...etc]]
+        this.data = style12.slice(8);
+    };
+    var getBoardUnicode = function(board) {
+        var replace_map = {
+            '-':'＿', // empty
+            'r':'♖','n':'♘','b':'♗','q':'♕','k':'♔','p':'♙', // white
+            'R':'♜','N':'♞','B':'♝','Q':'♛','K':'♚','P':'♟'  // black 
+        };
+        var blacksquare = '▩';				
+        var temp = board;
+        for(var r=0; r<board.length; r++) {
+            for(var c=0; c<8; c++) {
+                temp[r][c] = replace_map[board[r][c]]+'\t';
+            }
+        }
+        var display = '+\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t+';
+        for(var r = board.length-1; r >= 0; r--) {
+            display += '\n|';
+            for(var c = 0; c < 8; c++) {
+                if(i%2==0) {
+                    if(c%2==0) {
+                        board[r][c] = board[r][c].replace('＿',blacksquare);
+                    }
+                } else {
+                    if(c%2==1) {
+                        board[r][c] = board[r][c].replace('＿',blacksquare);
+                    }
+                }
+                display += row[c];
+            }
+            display += '|';
+        }
+        var display = '+\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t+';
+        return display;
+    }
+};
+var GS = new GameState();
+
+// Read configuration file.
 fs.readFile(__dirname+'/'+credentials_file, 'utf8', function (err, data) {
     if (err) {
         console.log('Error: ' + err);
@@ -21,82 +89,42 @@ fs.readFile(__dirname+'/'+credentials_file, 'utf8', function (err, data) {
     }
      
     var credentials = JSON.parse(data);
-     
-    console.log(data);
     var fics = net.createConnection(port,host);
+    var input = process.openStdin();
+//    var output = process.stdout; // not currently used.
 
     fics.addListener('connect', function() {
-    	var input = process.openStdin(), 
-    		output = process.stdout;
-    
+    	PSM.next();
+    	sys.puts('Connected to FICS');
     	input.addListener('data', function(data) {
-    		if(PSM.isLoggedIn) {
+    		if(PSM.is('CONNECTED')) {
     			fics.write(data + EOL);
     		}
     	});
-    	PSM.isConnected = true;
-    	sys.puts('Connected to FICS');
-    	fics.addListener('data',function(chunk) {
-    		var str = chunk.toString('utf8',0,chunk.length);
-    		if(PSM.isLoggedIn) {
+    	fics.addListener('data', function(chunk) {
+    		var str = chunk.toString('utf8', 0, chunk.length);
+
+    		if(PSM.is('LOGGED_IN')) { // Skip main welcome message.
+
+//<!----- MAIN PROCESSING OF FICS INPUT HERE ---->
     			//fs.appendFile(logfile, str, function(err) {console.log(err);});
-        	//<!----- MAIN PROCESSING OF INPUT HERE ---->
     		
-            if(str.indexOf('<12>') !== -1)  {
-    	    str = str.substr(str.indexOf('<12>'));
-    	sys.puts(str);
-                var style12  = str.split(' ').slice(1);
-                var board = style12.slice(0,8);
-                var data = style12.slice(8);
-            
-                var displayBoard = function(board) {
-                    var replace_map = {
-                        '-':'＿', // empty
-                        'r':'♖','n':'♘','b':'♗','q':'♕','k':'♔','p':'♙', // white
-                        'R':'♜','N':'♞','B':'♝','Q':'♛','K':'♚','P':'♟'  // black 
-                    };
-		    var blacksquare = '▩';				
-    		var temp = board.join(' ');
-                    board = temp.replace(/[^ ]/g, function(match) {
-                        return replace_map[match];
-                    });
-    		
-                    var temp = board.split(' ');
-    		board = temp;
-		var display = '+--------------+';
-                    for(var i = board.length-1; i >= 0; i--) {
-		    	var row = board[i].split('');
-			display += '\n|';
-			for(var c=0; c<board[i].length; c++) {
-				if(i%2==0) {
-					if(c%2==0) {
-					   row[c] = row[c].replace('＿',blacksquare);
-					}
-				} else {
-					if(c%2==1) {
-					   row[c] = row[c].replace('＿',blacksquare);
-					}
-				}
-				display += row[c];
-			}
-			display += '|';
-                    }
-                    display += '\n+--------------+';
-		    sys.puts(display);
-                };
-                displayBoard(board);
-            } else {
+                // Parse all input.
                 sys.puts(str);
-            }
-    
+                if(str.indexOf('<12>') !== -1)  {
+                    GS.parseFromStyle12(str);
+                    sys.puts(GS.getBoardUnicode());
+                }// else if() {}  ... 
+                else {
+                    //sys.puts(str);
+                }
     		}
-    		if(PSM.isInputtingPassword) {
+    		if(PSM('NEEDS_PWD')) {
     			fics.write(credentials.pwd+EOL);
-    			PSM.isLoggedIn = true;
-    			PSM.isInputtingPassword = false;
-    		} else if(!PSM.isLoggedIn) {
+    			PSM.next();
+    		} else if(!PSM.is('LOGGED_IN')) {
     			fics.write(credentials.uname+EOL);
-    			PSM.isInputtingPassword = true;
+                PSM.next();
     		}
     	})
     });
