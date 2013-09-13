@@ -7,6 +7,7 @@ var credentials_file = 'credentials.json';
 var logfile = 'log';
 var EOL = '\r\n';
 
+
 // Pretty State Machine
 var PrettyStateMachine = function(state) {
     this.CURRENT = state || 0;
@@ -46,6 +47,25 @@ var GameState = function () {
         // board = [ [P,K,R,-,...etc],[...etc]]
         this.data = style12.slice(8);
     };
+    var getBoardHTML = function(board) {
+        var replace_map = {
+            '-':emptyPiece // empty
+            'r':whiteRook,
+            'n':whiteNight,
+            'b':whiteBishop,
+            'q':whiteQueen,
+            'k':whiteKing,
+            'p':whitePawn, // white
+            'R':blackRook,
+            'N':blackNight,
+            'B':blackBishop,
+            'Q':blackQueen,
+            'K':blackKing,
+            'P':blackPawn, // white
+            'R':'♜','N':'♞','B':'♝','Q':'♛','K':'♚','P':'♟'  // black 
+        };
+        
+    }
     var getBoardUnicode = function(board) {
         var replace_map = {
             '-':'＿', // empty
@@ -92,41 +112,50 @@ fs.readFile(__dirname+'/'+credentials_file, 'utf8', function (err, data) {
     var credentials = JSON.parse(data);
     var fics = net.createConnection(port,host);
     var input = process.openStdin();
-//    var output = process.stdout; // not currently used.
+//  var output = process.stdout; // not currently used.
+    var io = require('socket.io').listen(80);
+    io.sockets.on('connection', function (cSocket) {
+        cSocket.emit('', { hello: 'world' });
+        cSocket.on('move', function (data) {
+            console.log(data);
+        });
 
-    fics.addListener('connect', function() {
-    	PSM.next();
-    	sys.puts('Connected to FICS');
-    	input.addListener('data', function(data) {
-    		if(!PSM.is('DISCONNECTED')) {
-    			fics.write(data + EOL);
-    		}
-    	});
-    	fics.addListener('data', function(chunk) {
-    		var str = chunk.toString('utf8', 0, chunk.length);
-
-    		if(PSM.is('LOGGED_IN')) { // Skip main welcome message.
-
-//<!----- MAIN PROCESSING OF FICS INPUT HERE ---->
-    			//fs.appendFile(logfile, str, function(err) {console.log(err);});
-    		
-                // Parse all input.
-                sys.puts(str);
-                if(str.indexOf('<12>') !== -1)  {
-                    GS.parseFromStyle12(str);
-                    sys.puts(GS.getBoardUnicode());
-                }// else if() {}  ... 
-                else {
-                    //sys.puts(str);
-                }
-    		}
-    		if(PSM.is('NEEDS_PWD')) {
-    			fics.write(credentials.pwd+EOL);
-    			PSM.next();
-    		} else if(!PSM.is('LOGGED_IN')) {
-    			fics.write(credentials.uname+EOL);
+            fics.addListener('connect', function() {
                 PSM.next();
-    		}
-    	})
-    });
+                sys.puts('Connected to FICS');
+                input.addListener('data', function(data) {
+                    if(!PSM.is('DISCONNECTED')) {
+                        fics.write(data + EOL);
+                    }
+                });
+                fics.addListener('data', function(chunk) {
+                    var str = chunk.toString('utf8', 0, chunk.length);
+
+                    if(PSM.is('LOGGED_IN')) { // Skip main welcome message.
+
+        //<!----- MAIN PROCESSING OF FICS INPUT HERE ---->
+                        //fs.appendFile(logfile, str, function(err) {console.log(err);});
+                    
+                        // Parse all input.
+                        sys.puts(str);
+                        if(str.indexOf('<12>') !== -1)  {
+                            GS.parseFromStyle12(str);
+                            var board = GS.getBoardUnicode();
+                            sys.puts(board);
+                            cSocket.emit('board', board);
+                        }// else if() {}  ... 
+                        else {
+                            //sys.puts(str);
+                        }
+                    }
+                    if(PSM.is('NEEDS_PWD')) {
+                        fics.write(credentials.pwd+EOL);
+                        PSM.next();
+                    } else if(!PSM.is('LOGGED_IN')) {
+                        fics.write(credentials.uname+EOL);
+                        PSM.next();
+                    }
+                })
+            });
+        });
 });
